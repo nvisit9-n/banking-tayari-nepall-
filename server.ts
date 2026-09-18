@@ -256,24 +256,51 @@ Format Style: ${format}`;
   }
 });
 
-const AI_ASSISTANT_SYSTEM_INSTRUCTION = `तपाईं नेपालको बैंकिङ (NRB, RBB, NBL, ADBL) तथा लोकसेवा आयोग परीक्षा तयारीका लागि एक अत्यन्तै बुद्धिमान्, सहयोगी र मैत्रीपूर्ण AI अध्ययन साथी (AI Study Tutor / Mentor) हुनुहुन्छ।
+function getAiSystemInstruction(level?: string, mode?: string): string {
+  let levelContext = `
+- **तह ४-५ (सहायक/खरिदार/नायब सुब्बा):** आधारभूत अवधारणा, ऐन तथा कानुनका प्रत्यक्ष दफा (NRB, BAFIA, Company Act), स्पष्ट बुँदागत उत्तर, संक्षिप्त परिभाषा र चरणबद्ध सरल हिसाबलाई प्राथमिकता दिनुहोस्।`;
 
-तपाईंको कार्यशैली ChatGPT तथा Gemini Web जस्तै बिल्कुल प्राकृतिक, गतिशील, सटिक र संवादमूलक हुनुपर्छ।
+  if (level === 'level6-8') {
+    levelContext = `
+- **तह ६-८ (अधिकृत/वरिष्ठ अधिकृत/प्रवन्धक तह ६-८):** नीतिगत विश्लेषण, वित्तीय जोखिम व्यवस्थापन (क्रेडिट, अपरेसनल, तरलता, बजार जोखिम), संस्थागत सुशासन, तुलनात्मक विश्लेषण (तालिकासहित), र संस्थागत सुधारका रणनीतिक सिफारिसहरू प्रस्तुत गर्नुहोस्।`;
+  } else if (level === 'level9-10') {
+    levelContext = `
+- **तह ९-१० (प्रबन्धक/उप-निर्देशक/निर्देशक):** म्याक्रो-प्रुडेन्सियल नियमन, समग्र वित्तीय स्थायित्व (Financial Stability), उच्च-स्तरीय नीति निर्माण, अन्तर्राष्ट्रिय मापदण्डहरू (Basel III, FATF Recommendations, IFRS/NFRS 9, Corporate Governance) र संकट व्यवस्थापन रणनीतिहरू प्रस्तुत गर्नुहोस्।`;
+  }
 
-[मुख्य निर्देशनहरू]:
-१. कुनै पनि कडा (rigid) वा बनावटी टेम्प्लेट (जस्तै "Senior Lok Sewa Evaluator", "५-तह संरचना", "क, ख, ग, घ") जस्ता अनावश्यक शीर्षक वा ढाँचा प्रयोग नगर्नुहोस्। प्रश्नको भाव र सन्दर्भ अनुसार सिधै र प्राकृतिक रूपमा उत्तर दिनुहोस्।
-२. सामान्य वा अनौपचारिक कुराकानीमा (जस्तै: "नमस्ते", "तपाईं को हुनुहुन्छ?", "तयारी कसरी सुरु गर्ने?"):
-   - अत्यन्तै स्वाभाविक, न्यानो र कुराकानी शैली (conversational tone) मा छोटो र स्पष्ट उत्तर दिनुहोस्।
-३. बैंकिङ, अर्थशास्त्र, कानुन वा लोकसेवा पाठ्यक्रम सम्बन्धी परीक्षा-सम्बद्ध प्रश्नमा:
-   - गहिरो (in-depth), तथ्यपरक र स्पष्ट संरचना भएको उत्तर दिनुहोस्।
-   - विषयवस्तु अनुसार उपयुक्त बोल्ड हेडिङहरू (Bold Headings), स्पष्ट बुँदाहरू (Bullet points), सम्बन्धित ऐन तथा दफाहरू (जस्तै: नेपाल राष्ट्र बैंक ऐन २०५८, बाफिया २०७३, सम्पत्ति शुद्धीकरण निवारण ऐन २०६४, संविधान आदि), तालिका वा तुलनात्मक विवरण आवश्यक परेमा समावेश गर्नुहोस्।
-   - परीक्षा दृष्टिकोणबाट महत्वपूर्ण निष्कर्ष वा सुझाव भए अन्त्यमा सहज रूपमा जोड्नुहोस्।
-४. गणित वा लेखा (Math/Account) का प्रश्नमा:
-   - स्पष्ट सूत्र, चरणबद्ध गणना र स्पष्ट अन्तिम उत्तर प्रस्तुत गर्नुहोस्।
-५. PDF दस्तावेज वा तस्बिर संलग्न भएको अवस्थामा:
-   - संलग्न दस्तावेज वा तस्बिरको सूक्ष्म अध्ययन गरी प्रयोगकर्ताले सोधेको विषयको सिधै स्पष्ट र तथ्यपरक विश्लेषण/समाधान दिनुहोस्।
-६. भाषा शैली:
-   - शुद्ध, स्पष्ट र उच्च प्राज्ञिक नेपाली भाषा (वा प्रयोगकर्ताले अंग्रेजीमा सोधेमा स्पष्ट अंग्रेजी) मा प्रवाहमय तरिकाले उत्तर प्रस्तुत गर्नुहोस्।`;
+  let answerSheetInstructions = '';
+  if (mode === 'answer_sheet') {
+    answerSheetInstructions = `
+[उत्तरपुस्तिका मूल्याङ्कन विशेष निर्देशन (Answer Sheet Evaluation)]:
+तपाईं लोकसेवा आयोग तथा बैंकिङ परीक्षाका अनुभवी उत्तरपुस्तिका परीक्षक (Senior Loksewa & Banking Examiner) हुनुहुन्छ।
+प्रयोगकर्ताले पठाएको हस्तलिखित उत्तरपुस्तिका, प्रश्नपत्र वा अभ्यास पानाको गहिरो परीक्षण गरी देहायको मानक ढाँचामा मूल्याङ्कन प्रस्तुत गर्नुहोस्:
+१. 📊 **प्राप्ताङ्क (Score): X/१० अंक** (उत्तरको गुणस्तर, विषयवस्तुको गहिराइ, प्रस्तुति र सान्दर्भिकता अनुसार निष्पक्ष अंक प्रदान गर्नुहोस्)।
+२. ✅ **सबल पक्षहरू (Strengths):** उत्तरमा के-के राम्रो छ (जस्तै: स्पष्ट अक्षर, सान्दर्भिक ऐन/दफाको उल्लेख, उप-शीर्षकहरूको प्रयोग, सटीक परिभाषा आदि)।
+३. ⚠️ **कमजोरी वा सुधार गर्नुपर्ने पक्षहरू (Weaknesses):** उत्तरमा के-के छुटेको छ वा सुधार्नुपर्नेछ (जस्तै: कानुनी आधारको कमी, तथ्याङ्क नहुनु, निष्कर्ष कमजोर हुनु, वा समय व्यवस्थापन)।
+४. 💡 **लोकसेवा / बैंकिङ परीक्षामा उच्चतम अंक प्राप्त गर्ने व्यावहारिक सुझावहरू (Examiner's Improvement Tips):** परिचय, कानुनी व्यवस्था, मुख्य विषयवस्तु, तालिका/चित्र र ठोस सकारात्मक निष्कर्षसहित कसरी परिष्कृत उत्तर बनाउने स्पष्ट मार्गदर्शन दिनुहोस्।`;
+  }
+
+  return `तपाईं नेपालको बैंकिङ (NRB, RBB, NBL, ADBL), लोकसेवा आयोग (Loksewa Aayog), तथा नेपालका ४५+ सार्वजनिक संस्थानहरू (नेपाल विद्युत प्राधिकरण - NEA, नेपाल टेलिकम - NTC, कर्मचारी सञ्चय कोष - EPF, नागरिक लगानी कोष - CIT, नेपाल क्लियरिङ हाउस - NCHL, नेपाल आयल निगम - NOC, खाद्य व्यवस्था तथा व्यापार कम्पनी, बीमा संस्थान आदि) को परीक्षा तयारीका लागि एक अत्यन्तै बुद्धिमान्, अनुभवी र मैत्रीपूर्ण AI अध्ययन साथी तथा वरिष्ठ मेन्टर (AI Study Tutor) हुनुहुन्छ।
+
+तपाईंको कार्यशैली Gemini तथा ChatGPT जस्तै गतिशील, प्राज्ञिक, सटिक र संवादमूलक हुनुपर्छ।
+
+[लक्षित परीक्षा तह र गहिराइ]:${levelContext}
+${answerSheetInstructions}
+
+[अर्थशास्त्रका चित्र र तुलनात्मक तालिकाहरू (Economics Diagrams & Tables)]:
+- जब अर्थशास्त्रका विषयहरू (माग र पूर्ति / Demand & Supply Curve, लागत वक्र / Cost Curves - AC, MC, AVC, एकाधिकार तथा कार्टेल / Cartel, IS-LM वक्र, वा बजार संरचना) बारे सोधिन्छ, स्पष्ट ASCII Diagram वा सुस्पष्ट कोड ब्लकभित्रको चित्र र तुलनात्मक Markdown तालिका (Markdown Table) अनिवार्य समावेश गर्नुहोस्।
+
+[गणित, लेखा तथा हिसाब (Step-by-Step Math & Accounting)]:
+- गणित, सांख्यिकी, बैंकिङ हिसाब (Compound Interest, Ratio & Proportion, Profit/Loss, Time & Work, BRS, Accounting Equation, Depreciation, CAR, CRR, SLR, NPL) का प्रश्नमा सधैं स्पष्ट सूत्र (Formula), चरणबद्ध गणना (Step-by-step calculation), र हाइलाइट गरिएको अन्तिम उत्तर (Final Answer) दिनुहोस्।
+
+[सामान्य तथा अनौपचारिक कुराकानी]:
+- सामान्य अभिवादन (जस्तै "नमस्ते", "तयारी कसरी गर्ने?") मा छोटो, न्यानो र प्राकृतिक कुराकानी शैलीमा उत्तर दिनुहोस्।
+
+[भाषा शैली]:
+- शुद्ध, स्पष्ट र उच्च प्राज्ञिक नेपाली भाषा (वा प्रयोगकर्ताले अंग्रेजीमा सोधेमा स्पष्ट अंग्रेजी) मा उत्तर प्रस्तुत गर्नुहोस्।`;
+}
+
+const AI_ASSISTANT_SYSTEM_INSTRUCTION = getAiSystemInstruction();
 
 function buildGeminiContents(
   cleanQuery: string,
@@ -473,15 +500,19 @@ app.post("/api/ai-assistant-stream", async (req, res) => {
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders?.();
 
-  const { query, history, image, attachment } = req.body || {};
+  const { query, history, image, attachment, level, mode } = req.body || {};
   const activeAttachment = attachment || (image && image.data ? { data: image.data, mimeType: image.mimeType || 'image/jpeg', name: 'image.jpg' } : undefined);
 
   let cleanQuery = typeof query === "string" ? query.trim() : "";
   if (!cleanQuery && activeAttachment && activeAttachment.data) {
     const isPdf = activeAttachment.mimeType?.includes('pdf') || activeAttachment.name?.toLowerCase().endsWith('.pdf');
-    cleanQuery = isPdf
-      ? "कृपया यस संलग्न PDF दस्तावेजको अध्ययन गरी यसको मुख्य सार तथा महत्वपूर्ण विषयवस्तुहरू स्पष्टसँग प्रस्तुत गर्नुहोस्।"
-      : "कृपया यस संलग्न तस्बिरमा भएको सामग्री अध्ययन गरी स्पष्ट समाधान वा विश्लेषण प्रस्तुत गर्नुहोस्।";
+    if (mode === 'answer_sheet') {
+      cleanQuery = "कृपया यस संलग्न हस्तलिखित उत्तरपुस्तिकाको गहिरो परीक्षण गरी १० अंकमा प्राप्ताङ्क (Score), सबल पक्ष, कमजोरी र लोकसेवा/बैंकिङ परीक्षामा उच्चतम अंक प्राप्त गर्ने व्यावहारिक सुधार टिप्ससहित स्पष्ट मूल्याङ्कन प्रस्तुत गर्नुहोस्।";
+    } else {
+      cleanQuery = isPdf
+        ? "कृपया यस संलग्न PDF दस्तावेजको अध्ययन गरी यसको मुख्य सार तथा महत्वपूर्ण विषयवस्तुहरू स्पष्टसँग प्रस्तुत गर्नुहोस्।"
+        : "कृपया यस संलग्न तस्बिरमा भएको सामग्री अध्ययन गरी स्पष्ट समाधान वा विश्लेषण प्रस्तुत गर्नुहोस्।";
+    }
   }
 
   if (!cleanQuery && (!activeAttachment || !activeAttachment.data)) {
@@ -491,6 +522,7 @@ app.post("/api/ai-assistant-stream", async (req, res) => {
   }
 
   const ai = getGeminiClient();
+  const effectiveSystemInstruction = getAiSystemInstruction(level, mode);
 
   if (ai) {
     const candidateModels = ["gemini-3.8-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
@@ -502,7 +534,7 @@ app.post("/api/ai-assistant-stream", async (req, res) => {
           model: modelName,
           contents,
           config: {
-            systemInstruction: AI_ASSISTANT_SYSTEM_INSTRUCTION,
+            systemInstruction: effectiveSystemInstruction,
             temperature: 0.3,
             maxOutputTokens: 4096,
           }
@@ -541,21 +573,26 @@ app.post("/api/ai-assistant-stream", async (req, res) => {
 // AI Study Assistant (AI साथी) non-streaming endpoint for unlimited queries
 app.post("/api/ai-assistant", async (req, res) => {
   try {
-    const { query, history, image, attachment } = req.body || {};
+    const { query, history, image, attachment, level, mode } = req.body || {};
     const activeAttachment = attachment || (image && image.data ? { data: image.data, mimeType: image.mimeType || 'image/jpeg', name: 'image.jpg' } : undefined);
 
     let cleanQuery = typeof query === "string" ? query.trim() : "";
     if (!cleanQuery && activeAttachment && activeAttachment.data) {
       const isPdf = activeAttachment.mimeType?.includes('pdf') || activeAttachment.name?.toLowerCase().endsWith('.pdf');
-      cleanQuery = isPdf
-        ? "कृपया यस संलग्न PDF दस्तावेजको अध्ययन गरी यसको मुख्य सार तथा महत्वपूर्ण विषयवस्तुहरू स्पष्टसँग प्रस्तुत गर्नुहोस्।"
-        : "कृपया यस संलग्न तस्बिरमा भएको सामग्री अध्ययन गरी स्पष्ट समाधान वा विश्लेषण प्रस्तुत गर्नुहोस्।";
+      if (mode === 'answer_sheet') {
+        cleanQuery = "कृपया यस संलग्न हस्तलिखित उत्तरपुस्तिकाको गहिरो परीक्षण गरी १० अंकमा प्राप्ताङ्क (Score), सबल पक्ष, कमजोरी र लोकसेवा/बैंकिङ परीक्षामा उच्चतम अंक प्राप्त गर्ने व्यावहारिक सुधार टिप्ससहित स्पष्ट मूल्याङ्कन प्रस्तुत गर्नुहोस्।";
+      } else {
+        cleanQuery = isPdf
+          ? "कृपया यस संलग्न PDF दस्तावेजको अध्ययन गरी यसको मुख्य सार तथा महत्वपूर्ण विषयवस्तुहरू स्पष्टसँग प्रस्तुत गर्नुहोस्।"
+          : "कृपया यस संलग्न तस्बिरमा भएको सामग्री अध्ययन गरी स्पष्ट समाधान वा विश्लेषण प्रस्तुत गर्नुहोस्।";
+      }
     }
     if (!cleanQuery && (!activeAttachment || !activeAttachment.data)) {
       return res.status(400).json({ error: "Query, PDF or image is required" });
     }
 
     const ai = getGeminiClient();
+    const effectiveSystemInstruction = getAiSystemInstruction(level, mode);
 
     if (ai) {
       const candidateModels = ["gemini-3.8-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
@@ -567,7 +604,7 @@ app.post("/api/ai-assistant", async (req, res) => {
             model: modelName,
             contents,
             config: {
-              systemInstruction: AI_ASSISTANT_SYSTEM_INSTRUCTION,
+              systemInstruction: effectiveSystemInstruction,
               temperature: 0.3,
               maxOutputTokens: 4096,
             },

@@ -206,6 +206,30 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
               );
             }
 
+            // Answer Sheet Evaluation: Score / Rating Callout
+            if (
+              textContent.includes('प्राप्ताङ्क') ||
+              textContent.includes('प्राप्ताङ्क:') ||
+              textContent.includes('Score:') ||
+              textContent.includes('अंक:')
+            ) {
+              return (
+                <div className="my-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-transparent border-2 border-amber-500/40 dark:border-amber-500/30 text-slate-900 dark:text-white shadow-sm">
+                  <div className="flex items-center gap-2.5 mb-1.5">
+                    <span className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs uppercase tracking-wider shadow-xs">
+                      📊 उत्तरपुस्तिका मूल्याङ्कन
+                    </span>
+                    <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                      लोकसेवा / बैंकिङ मानक
+                    </span>
+                  </div>
+                  <div className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 leading-relaxed">
+                    {children}
+                  </div>
+                </div>
+              );
+            }
+
             // Answer heading/lead callout
             if (
               textContent.startsWith('उत्तर:') ||
@@ -215,6 +239,25 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
               return (
                 <div className="my-3 p-3.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border-l-4 border-emerald-600 text-emerald-950 dark:text-emerald-200 text-xs sm:text-sm leading-relaxed">
                   <div className="font-semibold">{children}</div>
+                </div>
+              );
+            }
+
+            // Strengths / Weaknesses callouts
+            if (textContent.startsWith('✅ सबल पक्ष') || textContent.startsWith('सबल पक्षहरू')) {
+              return (
+                <div className="my-3 p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-emerald-950 dark:text-emerald-100 text-xs sm:text-sm leading-relaxed">
+                  <div className="font-bold text-emerald-800 dark:text-emerald-300 mb-1">✅ सबल पक्षहरू (Strengths):</div>
+                  <div>{children}</div>
+                </div>
+              );
+            }
+
+            if (textContent.startsWith('⚠️ कमजोरी') || textContent.startsWith('सुधार गर्नुपर्ने पक्ष')) {
+              return (
+                <div className="my-3 p-3.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 text-rose-950 dark:text-rose-100 text-xs sm:text-sm leading-relaxed">
+                  <div className="font-bold text-rose-800 dark:text-rose-300 mb-1">⚠️ कमजोरी वा सुधार गर्नुपर्ने पक्षहरू (Weaknesses):</div>
+                  <div>{children}</div>
                 </div>
               );
             }
@@ -264,6 +307,71 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
               {children}
             </em>
           ),
+
+          pre: ({ children, ...props }) => {
+            const childText = React.Children.toArray(children)
+              .map(c => {
+                if (typeof c === 'string') return c;
+                if (React.isValidElement(c) && (c.props as any)?.children) {
+                  const subChildren = (c.props as any).children;
+                  return Array.isArray(subChildren) ? subChildren.join('') : String(subChildren || '');
+                }
+                return '';
+              })
+              .join('')
+              .trim();
+
+            const isSvg = childText.startsWith('<svg') && childText.endsWith('</svg>');
+            if (isSvg) {
+              return (
+                <div className="my-5 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto flex flex-col items-center">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 self-start flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>अर्थशास्त्र रेखाचित्र (SVG Vector Model)</span>
+                  </div>
+                  <div 
+                    className="max-w-full overflow-x-auto flex justify-center py-2"
+                    dangerouslySetInnerHTML={{ __html: childText }}
+                  />
+                </div>
+              );
+            }
+
+            const isDiagramOrMath = 
+              childText.includes('──') || 
+              childText.includes('│') || 
+              childText.includes('┌') || 
+              childText.includes('┼') || 
+              childText.includes('-->') || 
+              childText.includes('==>') || 
+              childText.includes('Demand') || 
+              childText.includes('Supply') || 
+              childText.includes('Cost') ||
+              childText.includes('वक्र');
+
+            return (
+              <div className="my-5 rounded-2xl overflow-hidden border border-slate-700/80 bg-slate-950 text-emerald-300 shadow-md">
+                <div className="bg-slate-900 px-4 py-2 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400 font-mono">
+                  <div className="flex items-center gap-2">
+                    <span className="flex gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block"></span>
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block"></span>
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block"></span>
+                    </span>
+                    <span className="font-sans font-semibold text-slate-300 text-[11px] ml-1">
+                      {isDiagramOrMath ? '📈 अर्थशास्त्र रेखाचित्र / हिसाब (Diagram & Formulas)' : 'कोड / रेखाचित्र'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-sans">
+                    Loksewa & Banking Visuals
+                  </span>
+                </div>
+                <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono leading-relaxed whitespace-pre scrollbar-thin scrollbar-thumb-slate-700" {...props}>
+                  {children}
+                </pre>
+              </div>
+            );
+          },
 
           code: ({ children, ...props }) => (
             <code className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 font-mono text-xs sm:text-sm font-semibold" {...props}>
