@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "Banking Tayari Nepal",
+  "short_name": "BankingTayari",
+  "description": "Nepal's zero-error preparation platform for Nepal Rastra Bank, Rastriya Banijya Bank, Loksewa, and Public Enterprises exams.",
+  "theme_color": "#0B2046",
+  "background_color": "#0B2046",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "start_url": "/",
+  "scope": "/",
+  "categories": ["education", "books", "productivity"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
