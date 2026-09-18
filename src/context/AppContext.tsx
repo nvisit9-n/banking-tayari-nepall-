@@ -29,6 +29,7 @@ interface AppContextType {
   setUser: (user: UserProfile) => void;
   isLoggedIn: boolean;
   setIsLoggedIn: (loggedIn: boolean) => void;
+  isAuthReady: boolean;
   isLoginModalOpen: boolean;
   setIsLoginModalOpen: (open: boolean) => void;
   loginModalMessage: string;
@@ -86,6 +87,23 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+const isProfilesEquivalent = (p1: UserProfile | null | undefined, p2: UserProfile | null | undefined): boolean => {
+  if (p1 === p2) return true;
+  if (!p1 || !p2) return false;
+  return (
+    p1.id === p2.id &&
+    p1.email === p2.email &&
+    p1.role === p2.role &&
+    Boolean(p1.isPro || p1.isProUser) === Boolean(p2.isPro || p2.isProUser) &&
+    p1.xp === p2.xp &&
+    p1.level === p2.level &&
+    p1.streak === p2.streak &&
+    p1.photoURL === p2.photoURL &&
+    p1.displayName === p2.displayName &&
+    Boolean(p1.isGuest) === Boolean(p2.isGuest)
+  );
+};
 
 export const AppProvider: React.FC<{ children: React.ReactNode; initialUser?: UserProfile | null }> = ({ children, initialUser }) => {
   const getInitialTab = (): NavigationTab => {
@@ -157,16 +175,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialUser?: Us
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const [theme, setThemeState] = useState<'light' | 'dark'>('light');
+  // Synchronously initialize theme from persistent storage to eliminate theme flash
+  const [theme, setThemeState] = useState<'light' | 'dark'>(() => StorageService.getTheme());
+  
   const [user, setUserState] = useState<UserProfile>(() => {
     if (initialUser) return sanitizeUserProfile(initialUser);
     return StorageService.getUserProfile();
   });
 
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+  const [isLoggedIn, setIsLoggedInState] = useState<boolean>(() => {
     const u = initialUser ? sanitizeUserProfile(initialUser) : StorageService.getUserProfile();
     return Boolean(u && !u.isGuest && !!u.email && u.email.includes('@'));
   });
+
+  const setIsLoggedIn = useCallback((loggedIn: boolean) => {
+    setIsLoggedInState(prev => (prev === loggedIn ? prev : loggedIn));
+  }, []);
+
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(() => FirebaseAuthService.isAuthSettled());
 
   const [bookmarks, setBookmarks] = useState<BookmarkItem[]>(StorageService.getBookmarks());
   const [purchases, setPurchases] = useState<PurchaseRecord[]>(StorageService.getPurchases());
@@ -193,23 +219,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialUser?: Us
 
   const isCurrentUserAdmin = Boolean(user && isUserAdmin(user.email));
 
-  // Sync initialUser if updated from parent
+  // Sync initialUser if updated from parent with deduplication check
   useEffect(() => {
     if (initialUser) {
       const sanitized = sanitizeUserProfile(initialUser);
-      setUserState(sanitized);
-      setIsLoggedIn(Boolean(sanitized && !sanitized.isGuest && !!sanitized.email));
+      setUserState(current => {
+        if (isProfilesEquivalent(current, sanitized)) return current;
+        return sanitized;
+      });
+      const loggedIn = Boolean(sanitized && !sanitized.isGuest && !!sanitized.email);
+      setIsLoggedInState(prev => (prev === loggedIn ? prev : loggedIn));
     }
   }, [initialUser]);
 
-  // Keep isLoggedIn in sync with user state
-  useEffect(() => {
-    setIsLoggedIn(Boolean(user && !user.isGuest && !!user.email && user.email.includes('@')));
-  }, [user]);
-
-  // Listen to Firebase Auth state changes and synchronize user profile immediately
+  // Listen to Firebase Auth state changes and synchronize user profile with strict deduplication
   useEffect(() => {
     const unsubscribe = FirebaseAuthService.onAuthStateChanged((fbProfile) => {
+      setIsAuthReady(true);
       if (fbProfile && fbProfile.email && fbProfile.email.includes('@')) {
         const cleanEmail = fbProfile.email.toLowerCase().trim();
         const stored = StorageService.getUserProfile();
@@ -232,33 +258,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialUser?: Us
           avatarUrl: fbProfile.avatarUrl || (isSame ? stored.avatarUrl : undefined)
         });
 
-        setUserState(merged);
-        StorageService.saveUserProfile(merged);
-        try {
-          const serialized = JSON.stringify(merged);
-          localStorage.setItem('isLoggedIn', 'true');
-          localStorage.setItem('user', serialized);
-          localStorage.setItem('user_profile', serialized);
-          localStorage.setItem('btn_authenticated_user', serialized);
-        } catch {}
-        setIsLoggedIn(true);
+        setUserState(current => {
+          if (isProfilesEquivalent(current, merged)) {
+            return current;
+          }
+          StorageService.saveUserProfile(merged);
+          try {
+            const serialized = JSON.stringify(merged);
+            localStorage.setItem('isLoggedIn', 'true');
+            localStorage.setItem('user', serialized);
+            localStorage.setItem('user_profile', serialized);
+            localStorage.setItem('btn_authenticated_user', serialized);
+          } catch {}
+          return merged;
+        });
+
+        setIsLoggedInState(prev => (prev === true ? prev : true));
         setIsLoginModalOpen(false);
       } else {
+        // Only fallback if not already logged in
         const stored = StorageService.getUserProfile();
         if (stored && !stored.isGuest && stored.email && stored.email.includes('@')) {
-          setUserState(stored);
-          setIsLoggedIn(true);
+          setUserState(current => {
+            if (isProfilesEquivalent(current, stored)) return current;
+            return stored;
+          });
+          setIsLoggedInState(prev => (prev === true ? prev : true));
         } else {
           const guest = StorageService.getGuestProfile();
-          setUserState(guest);
-          setIsLoggedIn(false);
+          setUserState(current => {
+            if (isProfilesEquivalent(current, guest)) return current;
+            return guest;
+          });
+          setIsLoggedInState(prev => (prev === false ? prev : false));
         }
       }
     });
     return () => unsubscribe();
   }, []);
 
-  // Listen to profile updates & login events across the app to update state immediately
+  // Listen to profile updates & login events across the app with deduplication
   useEffect(() => {
     const handleProfileUpdated = (e: Event) => {
       const customEvt = e as CustomEvent<UserProfile>;
@@ -270,9 +309,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialUser?: Us
           sanitized.isProUser = true;
           sanitized.proStatus = 'active';
         }
-        setUserState(sanitized);
+        setUserState(current => {
+          if (isProfilesEquivalent(current, sanitized)) return current;
+          return sanitized;
+        });
         const loggedIn = Boolean(sanitized && !sanitized.isGuest && !!sanitized.email);
-        setIsLoggedIn(loggedIn);
+        setIsLoggedInState(prev => (prev === loggedIn ? prev : loggedIn));
         if (loggedIn) {
           setIsLoginModalOpen(false);
         }
@@ -284,9 +326,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialUser?: Us
           u.isProUser = true;
           u.proStatus = 'active';
         }
-        setUserState(u);
+        setUserState(current => {
+          if (isProfilesEquivalent(current, u)) return current;
+          return u;
+        });
         const loggedIn = Boolean(u && !u.isGuest && !!u.email);
-        setIsLoggedIn(loggedIn);
+        setIsLoggedInState(prev => (prev === loggedIn ? prev : loggedIn));
         if (loggedIn) {
           setIsLoginModalOpen(false);
         }
@@ -303,9 +348,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialUser?: Us
           sanitized.isProUser = true;
           sanitized.proStatus = 'active';
         }
-        setUserState(sanitized);
-        StorageService.saveUserProfile(sanitized);
-        setIsLoggedIn(true);
+        setUserState(current => {
+          if (isProfilesEquivalent(current, sanitized)) return current;
+          StorageService.saveUserProfile(sanitized);
+          return sanitized;
+        });
+        setIsLoggedInState(true);
         setIsLoginModalOpen(false);
       }
     };
@@ -482,16 +530,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialUser?: Us
     addToast('प्रशासक सत्र सुरक्षित रूपमा बन्द भयो (Admin Logged Out)', 'info');
   }, []);
 
-  // Initialize theme on mount
+  // Apply theme class and sync to Storage
   useEffect(() => {
-    const saved = StorageService.getTheme();
-    setThemeState(saved);
-    if (saved === 'dark') {
+    if (theme === 'dark') {
       document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
     } else {
       document.documentElement.classList.remove('dark');
+      document.documentElement.style.colorScheme = 'light';
     }
-  }, []);
+    StorageService.setTheme(theme);
+  }, [theme]);
 
   // Real-Time Visitor Analytics & Heartbeat
   useEffect(() => {
@@ -505,15 +554,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialUser?: Us
     };
   }, [activeTab, user?.id, user?.email]);
 
-  const toggleTheme = () => {
-    const next = theme === 'light' ? 'dark' : 'light';
-    setThemeState(next);
-    StorageService.setTheme(next);
-  };
+  const toggleTheme = useCallback(() => {
+    setThemeState(prev => (prev === 'light' ? 'dark' : 'light'));
+  }, []);
 
   const [pendingCallback, setPendingCallback] = useState<(() => void) | null>(null);
 
-  const setUser = (newUser: UserProfile) => {
+  const setUser = useCallback((newUser: UserProfile) => {
     const sanitized = sanitizeUserProfile(newUser);
     const isOwner = isOwnerAdmin(sanitized.email);
     if (isOwner) {
@@ -522,10 +569,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialUser?: Us
       sanitized.isProUser = true;
       sanitized.proStatus = 'active';
     }
-    setUserState(sanitized);
-    StorageService.saveUserProfile(sanitized);
+    setUserState(current => {
+      if (isProfilesEquivalent(current, sanitized)) return current;
+      StorageService.saveUserProfile(sanitized);
+      return sanitized;
+    });
     const loggedIn = Boolean(sanitized && !sanitized.isGuest && !!sanitized.email);
-    setIsLoggedIn(loggedIn);
+    setIsLoggedInState(prev => (prev === loggedIn ? prev : loggedIn));
     try {
       localStorage.setItem('isLoggedIn', loggedIn ? 'true' : 'false');
       localStorage.setItem('user', JSON.stringify(sanitized));
@@ -544,7 +594,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialUser?: Us
         cb();
       }, 150);
     }
-  };
+  }, [pendingCallback]);
 
   const logout = () => {
     try {
@@ -771,6 +821,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode; initialUser?: Us
         setUser,
         isLoggedIn,
         setIsLoggedIn,
+        isAuthReady,
         isLoginModalOpen,
         setIsLoginModalOpen,
         loginModalMessage,

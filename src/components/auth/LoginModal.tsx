@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { 
   Mail, 
@@ -74,76 +74,51 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setIsVisible(isOpen);
   }, [isOpen]);
 
+  const callbacksRef = useRef({
+    onSuccess,
+    setUser,
+    setIsLoggedIn,
+    externalSetShowAuthModal,
+    onClose,
+    closeLoginModal,
+    setIsLoginModalOpen
+  });
+
+  useEffect(() => {
+    callbacksRef.current = {
+      onSuccess,
+      setUser,
+      setIsLoggedIn,
+      externalSetShowAuthModal,
+      onClose,
+      closeLoginModal,
+      setIsLoginModalOpen
+    };
+  });
+
   /**
-   * 1. AUTO-CLOSE LOGIN MODAL ON SUCCESS:
-   * Listen to Firebase onAuthStateChanged. As soon as user is detected / logged in successfully,
-   * automatically set isModalOpen = false and trigger modal close functions immediately.
+   * AUTO-CLOSE LOGIN MODAL ON SUCCESS:
+   * Listen to memoized FirebaseAuthService state. As soon as user is logged in,
+   * cleanly close modal without re-triggering recursive state loops.
    */
   useEffect(() => {
-    const authInst = FirebaseAuthService.getAuthInstance();
-    if (!authInst) return;
+    if (!isVisible) return;
 
-    const unsubscribe = onAuthStateChanged(authInst, (fbUser) => {
-      if (fbUser && fbUser.email) {
+    const unsubscribe = FirebaseAuthService.onAuthStateChanged((profile) => {
+      if (profile && profile.email && !profile.isGuest) {
         setIsVisible(false);
         setIsSigningIn(false);
+        const { externalSetShowAuthModal, onClose, closeLoginModal, setIsLoginModalOpen, onSuccess } = callbacksRef.current;
         if (externalSetShowAuthModal) externalSetShowAuthModal(false);
         if (onClose) onClose();
         closeLoginModal();
         setIsLoginModalOpen(false);
-
-        const cleanEmail = fbUser.email.toLowerCase().trim();
-        const displayName = fbUser.displayName?.trim() || cleanEmail.split('@')[0] || 'विद्यार्थी';
-        const photoURL = fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0052FF&color=fff&size=256`;
-        const uid = fbUser.uid;
-        const isOwner = isOwnerAdmin(cleanEmail);
-
-        const existing = StorageService.getUserProfile();
-        const isSame = existing && (existing.email?.toLowerCase().trim() === cleanEmail || existing.authUid === uid);
-
-        const enrichedProfile: UserProfile = sanitizeUserProfile({
-          ...(isSame ? existing : {}),
-          id: uid,
-          authUid: uid,
-          authProvider: (fbUser.providerData?.[0]?.providerId === 'google.com' ? 'google' : 'email') as any,
-          isGoogleUser: fbUser.providerData?.[0]?.providerId === 'google.com',
-          name: displayName,
-          displayName,
-          email: cleanEmail,
-          photoURL,
-          avatarUrl: photoURL,
-          isGuest: false,
-          isRegistered: true,
-          role: isOwner ? 'admin' : (isSame && existing?.role ? existing.role : 'student'),
-          isPro: isOwner ? true : Boolean(existing?.isPro || existing?.isProUser),
-          isProUser: isOwner ? true : Boolean(existing?.isPro || existing?.isProUser),
-          proStatus: isOwner ? 'active' : (isSame && existing?.proStatus ? existing.proStatus : 'inactive')
-        });
-
-        StorageService.saveUserProfile(enrichedProfile);
-        try {
-          const serialized = JSON.stringify(enrichedProfile);
-          localStorage.setItem('isLoggedIn', 'true');
-          localStorage.setItem('user', serialized);
-          localStorage.setItem('user_profile', serialized);
-          localStorage.setItem('btn_authenticated_user', serialized);
-          localStorage.setItem('btn_last_auth_email', cleanEmail);
-          localStorage.setItem('btn_last_auth_name', displayName);
-        } catch {}
-
-        if (setUser) setUser(enrichedProfile);
-        if (appSetUser) appSetUser(enrichedProfile);
-        if (setIsLoggedIn) setIsLoggedIn(true);
-        if (appSetIsLoggedIn) appSetIsLoggedIn(true);
-        if (onSuccess) onSuccess(enrichedProfile);
-
-        window.dispatchEvent(new CustomEvent('btn:profile-updated', { detail: enrichedProfile }));
-        window.dispatchEvent(new CustomEvent('btn:user-login', { detail: enrichedProfile }));
+        if (onSuccess) onSuccess(profile);
       }
     });
 
     return () => unsubscribe();
-  }, [externalSetShowAuthModal, onClose, closeLoginModal, setIsLoginModalOpen, setUser, appSetUser, setIsLoggedIn, appSetIsLoggedIn, onSuccess]);
+  }, [isVisible]);
 
   /**
    * Helper to ensure auth modal is closed immediately across all states and props

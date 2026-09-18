@@ -298,17 +298,51 @@ export class FirebaseAuthService {
     }
   }
 
+  private static subscribers = new Set<(user: UserProfile | null) => void>();
+  private static cachedUserProfile: UserProfile | null = null;
+  private static cachedSignature: string | null = null;
+  private static isAuthListenerStarted: boolean = false;
+  private static hasAuthSettled: boolean = false;
+
   /**
-   * Listen to Firebase Auth state changes
+   * Check if Firebase Auth has resolved its initial check
    */
-  static onAuthStateChanged(callback: (user: UserProfile | null) => void): () => void {
+  static isAuthSettled(): boolean {
+    return this.hasAuthSettled;
+  }
+
+  /**
+   * Get currently memoized user profile without triggering re-fetch
+   */
+  static getCachedUser(): UserProfile | null {
+    return this.cachedUserProfile;
+  }
+
+  /**
+   * Internal master listener to Firebase Auth
+   */
+  private static initMasterAuthListener(): void {
+    if (this.isAuthListenerStarted) return;
+    this.isAuthListenerStarted = true;
+
     const authInst = this.getAuthInstance();
-    return onAuthStateChanged(authInst, (fbUser) => {
+    if (!authInst) return;
+
+    onAuthStateChanged(authInst, (fbUser) => {
+      this.hasAuthSettled = true;
+
       if (fbUser && fbUser.email) {
         const cleanEmail = fbUser.email.toLowerCase().trim();
         const displayName = fbUser.displayName?.trim() || cleanEmail.split('@')[0] || 'परीक्षार्थी';
         const photoURL = fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0B2046&color=fff&size=256`;
         const uid = fbUser.uid;
+        const signature = `${uid}:${cleanEmail}:${displayName}:${photoURL}`;
+
+        // If user signature is unchanged and profile is cached, prevent duplicate re-render triggers
+        if (this.cachedSignature === signature && this.cachedUserProfile) {
+          return;
+        }
+
         const isOwner = isOwnerAdmin(cleanEmail);
         const existing = StorageService.getUserProfile();
         const isSame = existing && (existing.email?.toLowerCase().trim() === cleanEmail || existing.authUid === uid);
@@ -347,10 +381,56 @@ export class FirebaseAuthService {
           hasReceivedCompletionBonus: (isSame && existing?.hasReceivedCompletionBonus) ? true : false
         };
 
-        callback(profile);
+        this.cachedUserProfile = profile;
+        this.cachedSignature = signature;
+
+        // Broadcast to all active subscribers
+        this.subscribers.forEach((cb) => {
+          try {
+            cb(profile);
+          } catch (e) {
+            console.error('Auth subscriber callback error:', e);
+          }
+        });
       } else {
-        callback(null);
+        // Firebase emitted null
+        if (this.cachedUserProfile === null && this.cachedSignature === null) {
+          // Already null, do not re-broadcast
+          return;
+        }
+
+        this.cachedUserProfile = null;
+        this.cachedSignature = null;
+
+        this.subscribers.forEach((cb) => {
+          try {
+            cb(null);
+          } catch (e) {
+            console.error('Auth subscriber callback error:', e);
+          }
+        });
       }
     });
+  }
+
+  /**
+   * Listen to Firebase Auth state changes (Memoized & Deduplicated)
+   */
+  static onAuthStateChanged(callback: (user: UserProfile | null) => void): () => void {
+    this.subscribers.add(callback);
+    this.initMasterAuthListener();
+
+    // If auth state has already settled, immediately provide cached state to new subscriber
+    if (this.hasAuthSettled) {
+      try {
+        callback(this.cachedUserProfile);
+      } catch (e) {
+        console.error('Auth initial callback error:', e);
+      }
+    }
+
+    return () => {
+      this.subscribers.delete(callback);
+    };
   }
 }

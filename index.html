@@ -21,6 +21,24 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    
+    <!-- Instant blocking theme script to completely eliminate dark/light mode flash -->
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('btn_theme_mode_v1') || localStorage.getItem('theme');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (saved === 'dark' || (!saved && prefersDark)) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.colorScheme = 'dark';
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.style.colorScheme = 'light';
+          }
+        } catch (e) {}
+      })();
+    </script>
+
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Google Analytics (GA4) Script -->
     <script>
@@ -55,7 +73,7 @@
       });
     </script>
   </head>
-  <body class="bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200">
+  <body class="bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
     <div id="root"></div>
     <script type="module" crossorigin="anonymous" src="/src/main.tsx"></script>
   </body>

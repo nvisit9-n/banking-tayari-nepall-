@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Trophy, 
   Medal, 
@@ -43,7 +43,7 @@ export const LeaderboardSection: React.FC<LeaderboardSectionProps> = ({
     return getDistrictsByProvince(selectedProvince);
   }, [selectedProvince]);
 
-  const loadLeaderboardData = async () => {
+  const loadLeaderboardData = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await DbService.fetchLeaderboard({
@@ -59,11 +59,11 @@ export const LeaderboardSection: React.FC<LeaderboardSectionProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedProvince, selectedDistrict, selectedExam, currentUser.authUid, currentUser.id]);
 
   useEffect(() => {
     loadLeaderboardData();
-  }, [selectedProvince, selectedDistrict, selectedExam, currentUser.authUid, currentUser.xp]);
+  }, [loadLeaderboardData, currentUser.xp]);
 
   // Handle Quick Scope Filter
   const handleQuickScope = (scope: 'all' | 'my-province' | 'my-district') => {
@@ -368,8 +368,14 @@ export const LeaderboardSection: React.FC<LeaderboardSectionProps> = ({
         )}
 
         {/* Full List */}
-        <div className="divide-y divide-slate-100 dark:divide-slate-800">
-          {isLoading ? (
+        <div className="divide-y divide-slate-100 dark:divide-slate-800 relative">
+          {isLoading && filteredList.length > 0 && (
+            <div className="absolute top-2 right-4 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 dark:bg-blue-400/10 text-blue-600 dark:text-blue-400 text-xs font-semibold backdrop-blur-sm animate-pulse">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              <span>अपडेट हुँदैछ...</span>
+            </div>
+          )}
+          {isLoading && filteredList.length === 0 ? (
             <div className="py-12 text-center text-slate-400 text-sm">
               <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-500" />
               <span>ऱ्याङ्किङ विवरण लोड हुँदैछ...</span>
